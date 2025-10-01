@@ -1,0 +1,15 @@
+<<<<<<< HEAD
+python-telegram-bot>=20.3,<21
+requests>=2.31.0
+pandas>=2.0.3
+numpy>=1.25.0
+vaderSentiment>=3.3.2
+python-dotenv>=1.0.0
+=======
+python-telegram-bot==20.7
+vaderSentiment==3.3.2
+python-dotenv==1.0.0
+pandas==2.3.3
+numpy==1.26.4
+requests==2.31.0
+>>>>>>> a40c3b34f75f537a633dd72c15a227c7c99cbcc7
