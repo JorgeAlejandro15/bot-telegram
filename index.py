@@ -16,6 +16,7 @@ import numpy as np
 from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import (
+    Application,
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
@@ -574,6 +575,9 @@ async def coin_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # ---------- MAIN ----------
 def build_app():
+    if not TELEGRAM_TOKEN:
+        raise ValueError("TELEGRAM_TOKEN is required")
+    
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
@@ -582,6 +586,21 @@ def build_app():
     app.add_handler(CommandHandler("status", status_cmd))
     app.add_handler(MessageHandler(filters.Regex(COIN_RE), coin_message_handler))
     return app
+
+async def set_webhook(app: Application):
+    """Set up webhook for the application"""
+    try:
+        full_url = f"{BASE_URL}{WEBHOOK_PATH}"
+        logger.info(f"Setting webhook URL: {full_url}")
+        await app.bot.set_webhook(
+            url=full_url,
+            secret_token=WEBHOOK_SECRET_TOKEN,
+            drop_pending_updates=True
+        )
+        logger.info("Webhook set successfully")
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
+        raise
 
 def main():
     if TELEGRAM_TOKEN is None:
