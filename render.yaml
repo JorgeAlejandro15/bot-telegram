@@ -3,10 +3,12 @@ services:
     name: telegram-bitunix-bot
     env: python
     plan: free
-    buildCommand: pip install -r 
-    startCommand: python 
+    buildCommand: pip install -r requirements.txt
+    startCommand: python index.py
     envVars:
       - key: USE_WEBHOOK
         value: "1"
       - key: WEBHOOK_PATH
         value: "/telegram/webhook"
+      - key: PYTHON_VERSION
+        value: "3.11.9"
