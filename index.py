@@ -316,7 +316,7 @@ def compute_sentiment_from_market(df: pd.DataFrame):
 # ---------- UTILIDADES para #coin ----------
 def format_money(value):
     try:
-        return f"{value:,.2f}"
+        return f"{value:,.4f}"
     except Exception:
         return str(value)
 
