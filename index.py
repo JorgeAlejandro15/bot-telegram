@@ -14,13 +14,14 @@ import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     ApplicationBuilder,
     CommandHandler,
     ContextTypes,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
 )
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -441,6 +442,28 @@ def format_uptime(seconds: float) -> str:
     parts.append(f"{sec}s")
     return " ".join(parts)
 
+def format_coin_summary_message(coin: str, summary: dict) -> str:
+    """Formatea el mensaje del resumen de la moneda"""
+    last = summary.get("last")
+    high = summary.get("high")
+    low = summary.get("low")
+    change = summary.get("change_pct")
+    vol = summary.get("volume_quote") or summary.get("volume") or summary.get("volume_quote")
+
+    change_sign = "🔴" if change is not None and float(change) < 0 else ("🟢" if change is not None and float(change) > 0 else "➖")
+    change_str = f"{change:+.2f}%" if change is not None else "N/A"
+    vol_str = format_vol_m(vol) + " USDT" if vol is not None else "N/A"
+
+    msg_lines = [
+        f"Coin: {coin}",
+        f"💰Price:  {format_money(last)} USDT" if last is not None else "💰Price: N/A",
+        f"⬆️High（24H）:  {format_money(high)}" if high is not None else "⬆️High（24H）: N/A",
+        f"⬇️Low（24H）:  {format_money(low)}" if low is not None else "⬇️Low（24H）: N/A",
+        f"🔃Change（24H）:  {change_str} {change_sign}",
+        f"📊Vol（24H）:  {vol_str}"
+    ]
+    return "\n".join(msg_lines)
+
 # ---------- TELEGRAM HANDLERS ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = ("Hola 👋\nBot de recomendaciones BTC/USDT (solo SUGERENCIAS).\n"
@@ -553,25 +576,44 @@ async def coin_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("Lo siento, no pude obtener el resumen 24H ahora. Revisa KLINE/TICKER endpoints.")
         return
 
-    last = summary.get("last")
-    high = summary.get("high")
-    low = summary.get("low")
-    change = summary.get("change_pct")
-    vol = summary.get("volume_quote") or summary.get("volume") or summary.get("volume_quote")
+    # Crear el botón de actualizar
+    keyboard = [[InlineKeyboardButton("🔄 Actualizar", callback_data=f"update_coin_{coin}")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Formatear y enviar el mensaje con el botón
+    message_text = format_coin_summary_message(coin, summary)
+    await update.message.reply_text(message_text, reply_markup=reply_markup)
 
-    change_sign = "🔴" if change is not None and float(change) < 0 else ("🟢" if change is not None and float(change) > 0 else "➖")
-    change_str = f"{change:+.2f}%" if change is not None else "N/A"
-    vol_str = format_vol_m(vol) + " USDT" if vol is not None else "N/A"
-
-    msg_lines = [
-        f"Coin: {coin}-",
-        f"💰Price:  {format_money(last)} USDT" if last is not None else "💰Price: N/A",
-        f"⬆️High（24H）:  {format_money(high)}" if high is not None else "⬆️High（24H）: N/A",
-        f"⬇️Low（24H）:  {format_money(low)}" if low is not None else "⬇️Low（24H）: N/A",
-        f"🔃Change（24H）:  {change_str} {change_sign}",
-        f"📊Vol（24H）:  {vol_str}"
-    ]
-    await update.message.reply_text("\n".join(msg_lines))
+# ---------- CALLBACK HANDLER para el botón de actualizar ----------
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()  # Confirmar que se recibió el callback
+    
+    # Extraer el coin del callback_data
+    if query.data.startswith("update_coin_"):
+        coin = query.data.replace("update_coin_", "")
+        symbol = f"{coin}USDT"
+        
+        # Mostrar mensaje de carga (editando el mensaje original)
+        await query.edit_message_text(f"🔄 Actualizando resumen 24H para {symbol}...")
+        
+        # Obtener nuevos datos
+        summary = fetch_24h_summary(symbol)
+        if not summary:
+            await query.edit_message_text("❌ Error: no pude obtener el resumen 24H actualizado. Inténtalo más tarde.")
+            return
+        
+        # Crear el botón de actualizar nuevamente
+        keyboard = [[InlineKeyboardButton("🔄 Actualizar", callback_data=f"update_coin_{coin}")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Formatear y actualizar el mensaje
+        message_text = format_coin_summary_message(coin, summary)
+        # Agregar timestamp de actualización
+        now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+        message_text += f"\n\n🕐 Actualizado: {now}"
+        
+        await query.edit_message_text(message_text, reply_markup=reply_markup)
 
 # ---------- MAIN ----------
 def build_app():
@@ -585,6 +627,8 @@ def build_app():
     app.add_handler(CommandHandler("sentiment", sentiment_cmd))
     app.add_handler(CommandHandler("status", status_cmd))
     app.add_handler(MessageHandler(filters.Regex(COIN_RE), coin_message_handler))
+    # Agregar el handler para los botones inline
+    app.add_handler(CallbackQueryHandler(button_callback))
     return app
 
 async def set_webhook(app: Application):
