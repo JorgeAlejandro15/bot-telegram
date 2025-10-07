@@ -560,7 +560,7 @@ async def status_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode='Markdown')
 
 # ---------- HANDLER para mensajes que empiezan con #coin ----------
-COIN_RE = re.compile(r'(?i)^#([a-z]{2,11})\b')  # captura 2-6 letras después de '#'
+COIN_RE = re.compile(r'(?i)^#([a-z0-9]{2,11})\b')  # captura 2-11 letras y numeros después de '#'
 
 async def coin_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = update.message.text.strip()
